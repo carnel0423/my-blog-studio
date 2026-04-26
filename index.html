@@ -72,9 +72,13 @@
               <button id="insertSectionBtn" class="btn tool-btn" type="button">節タイトル</button>
               <button id="insertSubSectionBtn" class="btn tool-btn" type="button">小節タイトル</button>
               <button id="insertImportantBtn" class="btn tool-btn" type="button">重要マーク</button>
+              <button id="insertImageUrlBtn" class="btn tool-btn" type="button">画像URL</button>
+              <button id="insertVideoUrlBtn" class="btn tool-btn" type="button">動画URL</button>
+              <button id="insertMediaFileBtn" class="btn tool-btn" type="button">画像/動画ファイル</button>
+              <input id="mediaFileInput" type="file" accept="image/*,video/*" multiple hidden>
             </div>
             <textarea id="contentInput" class="textarea" spellcheck="true"></textarea>
-            <p class="hint">章は <code>##</code>、節は <code>###</code>、重要箇所は <code>!!重要テキスト!!</code> で強調できます。</p>
+            <p class="hint">章は <code>##</code>、節は <code>###</code>、画像は <code>![説明](URL)</code>、動画は <code>@[video](URL)</code> で挿入できます。</p>
           </div>
         </section>
 

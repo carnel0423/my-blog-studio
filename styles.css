@@ -363,6 +363,29 @@ select.input:focus {
   font-size: 16px;
 }
 
+.article-body .media-block {
+  margin: 14px 0;
+  border: 1px solid #d2d7de;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.article-body .media-block img,
+.article-body .media-block video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 6px;
+  background: #000;
+}
+
+.article-body .media-block figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
 .important-section {
   border: 1px solid #f1d599;
   background: #fff8e6;

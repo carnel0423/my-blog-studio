@@ -14,6 +14,10 @@ const els = {
   insertSectionBtn: document.getElementById("insertSectionBtn"),
   insertSubSectionBtn: document.getElementById("insertSubSectionBtn"),
   insertImportantBtn: document.getElementById("insertImportantBtn"),
+  insertImageUrlBtn: document.getElementById("insertImageUrlBtn"),
+  insertVideoUrlBtn: document.getElementById("insertVideoUrlBtn"),
+  insertMediaFileBtn: document.getElementById("insertMediaFileBtn"),
+  mediaFileInput: document.getElementById("mediaFileInput"),
   preview: document.getElementById("preview"),
   statusLine: document.getElementById("statusLine"),
   newPostBtn: document.getElementById("newPostBtn"),
@@ -91,6 +95,26 @@ function bindEvents() {
     wrapSelectionInContent("!!", "!!", "重要テキスト");
     setStatus("重要マークを挿入しました。");
   });
+  els.insertImageUrlBtn.addEventListener("click", () => {
+    const url = askForMediaUrl("画像URLを入力してください（https://...）", "https://");
+    if (!url) {
+      return;
+    }
+    insertSnippetIntoContent(`![画像](${url})`);
+    renderPreview();
+    setStatus("画像を本文に挿入しました。");
+  });
+  els.insertVideoUrlBtn.addEventListener("click", () => {
+    const url = askForMediaUrl("動画URLを入力してください（https://...）", "https://");
+    if (!url) {
+      return;
+    }
+    insertSnippetIntoContent(`@[video](${url})`);
+    renderPreview();
+    setStatus("動画を本文に挿入しました。");
+  });
+  els.insertMediaFileBtn.addEventListener("click", () => els.mediaFileInput.click());
+  els.mediaFileInput.addEventListener("change", insertMediaFilesIntoContent);
 
   els.newPostBtn.addEventListener("click", () => {
     loadDraft(makeEmptyPost());
@@ -178,7 +202,14 @@ function normalizePostRecord(item) {
 }
 
 function persistPosts() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.posts));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.posts));
+    return true;
+  } catch (error) {
+    console.error(error);
+    setStatus("保存に失敗しました。画像/動画が大きすぎる可能性があります。");
+    return false;
+  }
 }
 
 function makeEmptyPost() {
@@ -285,7 +316,9 @@ function saveCurrentPost(skipPublishPreview) {
   }
 
   state.posts.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  persistPosts();
+  if (!persistPosts()) {
+    return;
+  }
   renderPostList();
   setStatus(formPost.status === "published" ? "公開として保存しました。" : "下書きを保存しました。");
 }
@@ -312,7 +345,9 @@ function deleteCurrentPost() {
   }
 
   state.posts = state.posts.filter((post) => post.id !== state.selectedId);
-  persistPosts();
+  if (!persistPosts()) {
+    return;
+  }
 
   if (state.posts.length > 0) {
     selectPost(state.posts[0].id);
@@ -473,7 +508,16 @@ function buildImportantSectionHtml(keyPoints) {
 }
 
 function insertLineIntoContent(line) {
+  insertSnippetIntoContent(String(line || ""));
+  renderPreview();
+}
+
+function insertSnippetIntoContent(snippet) {
   const textarea = els.contentInput;
+  const body = String(snippet || "").trim();
+  if (!body) {
+    return;
+  }
   const start = typeof textarea.selectionStart === "number" ? textarea.selectionStart : textarea.value.length;
   const end = typeof textarea.selectionEnd === "number" ? textarea.selectionEnd : start;
   const before = textarea.value.slice(0, start);
@@ -492,16 +536,15 @@ function insertLineIntoContent(line) {
         ? "\n"
         : "\n\n"
     : "";
-  const snippet = `${leadBreak}${line}${trailBreak}`;
-  const nextValue = `${before}${snippet}${after}`;
-  const caret = before.length + snippet.length;
+  const mergedSnippet = `${leadBreak}${body}${trailBreak}`;
+  const nextValue = `${before}${mergedSnippet}${after}`;
+  const caret = before.length + mergedSnippet.length;
 
   textarea.value = nextValue;
   textarea.focus();
   if (typeof textarea.setSelectionRange === "function") {
     textarea.setSelectionRange(caret, caret);
   }
-  renderPreview();
 }
 
 function wrapSelectionInContent(prefix, suffix, fallbackText) {
@@ -523,6 +566,82 @@ function wrapSelectionInContent(prefix, suffix, fallbackText) {
     textarea.setSelectionRange(selectionStart, selectionEnd);
   }
   renderPreview();
+}
+
+function askForMediaUrl(message, initial) {
+  if (typeof window === "undefined" || typeof window.prompt !== "function") {
+    setStatus("URL入力がこの環境で利用できません。");
+    return null;
+  }
+  const input = window.prompt(message, initial || "");
+  if (!input) {
+    return null;
+  }
+  const value = input.trim();
+  if (!value) {
+    return null;
+  }
+  if (!/^(https?:\/\/|data:|blob:)/i.test(value)) {
+    setStatus("URLは https:// もしくは data:/blob: 形式を入力してください。");
+    return null;
+  }
+  return value;
+}
+
+async function insertMediaFilesIntoContent(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []);
+  if (files.length === 0) {
+    return;
+  }
+
+  let inserted = 0;
+  for (const file of files) {
+    if (!file || !file.type) {
+      continue;
+    }
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      continue;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const label = toSafeMdLabel(file.name || (file.type.startsWith("video/") ? "video" : "image"));
+      if (file.type.startsWith("image/")) {
+        insertSnippetIntoContent(`![${label}](${dataUrl})`);
+      } else {
+        insertSnippetIntoContent(`@[video:${label}](${dataUrl})`);
+      }
+      inserted += 1;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  input.value = "";
+  renderPreview();
+  if (inserted > 0) {
+    setStatus(`${inserted}件のメディアを本文に挿入しました。`);
+  } else {
+    setStatus("対応形式の画像/動画ファイルが見つかりませんでした。");
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("file read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function toSafeMdLabel(text) {
+  return String(text || "media")
+    .replace(/[\r\n\[\]\(\)]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "media";
 }
 
 function exportPosts() {
@@ -567,7 +686,9 @@ function importPostsFromFile(event) {
       [...state.posts, ...imported].forEach((post) => merged.set(post.id, post));
       state.posts = [...merged.values()].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-      persistPosts();
+      if (!persistPosts()) {
+        return;
+      }
       if (!state.selectedId && state.posts.length > 0) {
         state.selectedId = state.posts[0].id;
       }
@@ -728,6 +849,26 @@ function buildPublishedHtml(posts) {
     .article-body .body-head-6 {
       font-size: 16px;
     }
+    .article-body .media-block {
+      margin: 14px 0;
+      border: 1px solid #d2d7de;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 10px;
+    }
+    .article-body .media-block img,
+    .article-body .media-block video {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 6px;
+      background: #000;
+    }
+    .article-body .media-block figcaption {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #4b5563;
+    }
     pre {
       background: #111827;
       color: #f9fafb;
@@ -833,9 +974,17 @@ function inlineMd(text) {
   let html = escapeHtml(text);
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
   html = html.replace(/!!([^!]+)!!/g, '<mark class="important-mark">$1</mark>');
+  html = html.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, src) => {
+    const caption = alt ? `<figcaption>${alt}</figcaption>` : "";
+    return `<figure class="media-block image-block"><img src="${src}" alt="${alt}" loading="lazy">${caption}</figure>`;
+  });
+  html = html.replace(/@\[video(?::([^\]]+))?\]\(([^)\s]+)\)/gi, (_, caption, src) => {
+    const safeCaption = caption ? `<figcaption>${caption}</figcaption>` : "";
+    return `<figure class="media-block video-block"><video controls preload="metadata" src="${src}"></video>${safeCaption}</figure>`;
+  });
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   return html;
 }
 
