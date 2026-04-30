@@ -893,6 +893,11 @@ function resetPublishButtonLabel() {
 function ensurePublishConfig() {
   const existing = loadPublishConfig();
   if (isValidPublishConfig(existing)) {
+    if (existing.path === PUBLISHED_DATA_FILE_NAME) {
+      existing.path = PUBLISHED_DATA_REPO_PATH;
+      savePublishConfig(existing);
+      setStatus("公開先パスを docs/published-data.json に更新しました。");
+    }
     return existing;
   }
 
