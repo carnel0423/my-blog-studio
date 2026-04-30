@@ -1171,7 +1171,7 @@ function buildPublishedHtml(posts) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Blog</title>
+  <title>心旅ブログ</title>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
@@ -1314,7 +1314,7 @@ function buildPublishedHtml(posts) {
   </style>
 </head>
 <body>
-  <header><h1>My Blog</h1></header>
+  <header><h1>心旅ブログ</h1></header>
   <main>${sections}</main>
 </body>
 </html>`;

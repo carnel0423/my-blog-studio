@@ -49,6 +49,19 @@ body {
   font-weight: 650;
 }
 
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

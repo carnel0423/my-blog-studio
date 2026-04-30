@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Blog Studio</title>
+  <title>心旅ブログ | 編集スタジオ</title>
   <script>
     (function () {
       var isHosted = location.protocol.indexOf("http") === 0;
@@ -13,12 +13,16 @@
       }
     })();
   </script>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <h1 class="brand">My Blog Studio</h1>
+      <div class="brand-wrap">
+        <img src="icon.svg" alt="" class="brand-icon" width="24" height="24">
+        <h1 class="brand">心旅ブログ Studio</h1>
+      </div>
       <div class="toolbar">
         <button id="newPostBtn" class="btn" title="新規">＋ 新規</button>
         <button id="savePostBtn" class="btn primary" title="保存">💾 保存</button>

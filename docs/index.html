@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Blog | 公開ビュー</title>
+  <title>心旅ブログ | 公開ページ</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <style>
     body {
@@ -28,6 +29,16 @@
       margin: 0;
       font-size: 18px;
       line-height: 1.35;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .published-brand-icon {
+      display: block;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
     }
 
     .published-meta {
@@ -102,7 +113,7 @@
 </head>
 <body>
   <header class="published-topbar">
-    <h1 class="published-title">My Blog 公開ビュー</h1>
+    <h1 class="published-title"><img src="icon.svg" alt="" class="published-brand-icon" width="24" height="24">心旅ブログ</h1>
     <div class="published-meta">
       <p id="publishedUpdated" class="published-updated">最終更新: -</p>
     </div>

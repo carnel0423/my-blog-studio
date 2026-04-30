@@ -1,4 +1,4 @@
-# My Blog Studio
+# 心旅ブログ Studio
 
 Static blog studio + public blog view.
 
