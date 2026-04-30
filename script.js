@@ -40,6 +40,8 @@ const state = {
   filterText: "",
   slugEdited: false,
   pendingPublishConfirm: null,
+  lastSavedSnapshot: "",
+  hasUnsavedChanges: false,
 };
 
 init();
@@ -73,6 +75,7 @@ function bindEvents() {
 
   els.slugInput.addEventListener("input", () => {
     state.slugEdited = true;
+    updateUnsavedState();
   });
 
   els.statusInput.addEventListener("change", renderPreview);
@@ -164,6 +167,14 @@ function bindEvents() {
       closePublishPreviewModal();
     }
   });
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!state.hasUnsavedChanges) {
+      return;
+    }
+    event.preventDefault();
+    event.returnValue = "";
+  });
 }
 
 function loadPosts() {
@@ -240,6 +251,33 @@ function getFormPost() {
   };
 }
 
+function getFormSnapshot() {
+  const post = getFormPost();
+  return JSON.stringify({
+    id: post.id || "",
+    title: post.title || "",
+    slug: post.slug || "",
+    status: post.status || "draft",
+    tags: normalizeTags(post.tags),
+    keyPoints: normalizeKeyPoints(post.keyPoints),
+    content: post.content || "",
+  });
+}
+
+function markCurrentFormAsSaved() {
+  state.lastSavedSnapshot = getFormSnapshot();
+  state.hasUnsavedChanges = false;
+}
+
+function updateUnsavedState() {
+  if (!state.lastSavedSnapshot) {
+    state.lastSavedSnapshot = getFormSnapshot();
+    state.hasUnsavedChanges = false;
+    return;
+  }
+  state.hasUnsavedChanges = getFormSnapshot() !== state.lastSavedSnapshot;
+}
+
 function loadDraft(post) {
   els.titleInput.value = post.title || "";
   els.slugInput.value = post.slug || "";
@@ -249,6 +287,7 @@ function loadDraft(post) {
   els.contentInput.value = post.content || "";
   state.slugEdited = false;
   renderPreview();
+  markCurrentFormAsSaved();
 }
 
 function selectPost(postId) {
@@ -320,6 +359,7 @@ function saveCurrentPost(skipPublishPreview) {
     return;
   }
   renderPostList();
+  markCurrentFormAsSaved();
   setStatus(formPost.status === "published" ? "公開として保存しました。" : "下書きを保存しました。");
 }
 
@@ -460,6 +500,7 @@ function renderPreview() {
     ${keyPointsHtml}
     <div class="article-body">${bodyHtml}</div>
   `;
+  updateUnsavedState();
 }
 
 function openPublishPreviewModal({ post, confirmMode, onConfirm }) {
@@ -722,11 +763,20 @@ function openPublishedView() {
     return;
   }
 
-  const viewUrl = "published.html";
-  const opened = window.open(viewUrl, "_blank");
-  if (!opened) {
-    window.location.href = viewUrl;
+  const current = getFormPost();
+  const hasCurrentContent = current.title || current.content.trim() || current.tags.length > 0 || current.keyPoints.length > 0;
+  if (state.hasUnsavedChanges && hasCurrentContent) {
+    const continueOpen = window.confirm("入力中の未保存変更があります。公開ビューを開く前に保存しますか？\n\n「OK」: 保存して開く\n「キャンセル」: 保存せずに開く");
+    if (continueOpen) {
+      saveCurrentPost(false);
+      if (state.hasUnsavedChanges) {
+        return;
+      }
+    }
   }
+
+  const viewUrl = "published.html";
+  window.location.href = viewUrl;
   setStatus("公開ビューを開きました。");
 }
 
