@@ -21,6 +21,7 @@ Token note:
 Security note:
 - GitHub Pages source is `main` branch `/docs`, so `studio.html` and `script.js` are not publicly hosted.
 - Public readers can access only the published site and published data under `/docs`.
+- Even if `studio.html` is reached on a hosted URL, the editor auto-redirects / blocks editing on `github.io`.
 
 ## Files
 

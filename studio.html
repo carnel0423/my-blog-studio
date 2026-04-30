@@ -4,6 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Blog Studio</title>
+  <script>
+    (function () {
+      var isHosted = location.protocol.indexOf("http") === 0;
+      var isGithubPages = /(^|\.)github\.io$/i.test(location.hostname);
+      if (isHosted && isGithubPages) {
+        location.replace("index.html");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>

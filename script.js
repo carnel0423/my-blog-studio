@@ -55,7 +55,39 @@ const state = {
   isPublishing: false,
 };
 
-init();
+if (isEditorRuntimeAllowed()) {
+  init();
+} else {
+  renderEditorBlockedMessage();
+}
+
+function isEditorRuntimeAllowed() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  const protocol = String(window.location.protocol || "").toLowerCase();
+  const hostname = String(window.location.hostname || "");
+  const isHosted = protocol === "http:" || protocol === "https:";
+  const isGithubPages = /(^|\.)github\.io$/i.test(hostname);
+  return !(isHosted && isGithubPages);
+}
+
+function renderEditorBlockedMessage() {
+  const shell = document.querySelector(".app-shell");
+  if (!shell) {
+    return;
+  }
+  shell.innerHTML = `
+    <main style="min-height:60vh;display:grid;place-items:center;padding:24px;">
+      <section style="width:min(720px,100%);background:#fff;border:1px solid #d2d7de;border-radius:8px;padding:18px;">
+        <h1 style="margin:0 0 10px;font-size:20px;">編集画面は公開サイトでは無効です</h1>
+        <p style="margin:0 0 8px;">第三者が操作できないよう、公開ドメイン上では編集機能を停止しています。</p>
+        <p style="margin:0 0 12px;">編集はローカルの <code>studio.html</code> から行ってください。</p>
+        <p style="margin:0;"><a class="btn" href="index.html">公開ページへ戻る</a></p>
+      </section>
+    </main>
+  `;
+}
 
 function init() {
   state.posts = loadPosts();
