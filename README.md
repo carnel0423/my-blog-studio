@@ -4,8 +4,8 @@ Static blog studio + public blog view.
 
 ## Pages
 
-- `index.html`: public blog page (for readers)
-- `studio.html`: editor page (for authoring)
+- `docs/index.html`: public blog page (for readers, deployed by GitHub Pages)
+- `studio.html`: editor page (for authoring, local use)
 
 ## Public update flow
 
@@ -18,9 +18,14 @@ Token note:
 - Use a fine-grained token with repository `Contents: Read and write`.
 - The token is saved in browser localStorage on your machine.
 
+Security note:
+- GitHub Pages source is `main` branch `/docs`, so `studio.html` and `script.js` are not publicly hosted.
+- Public readers can access only the published site and published data under `/docs`.
+
 ## Files
 
 - `index.html` (public view)
+- `docs/index.html` (actual GitHub Pages public source)
 - `studio.html` (editor)
 - `styles.css`
 - `script.js` (editor logic)

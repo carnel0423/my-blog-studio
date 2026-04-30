@@ -1,12 +1,13 @@
 const STORAGE_KEY = "myBlogStudio.posts.v1";
 const NO_TAG_LABEL = "タグなし";
 const PUBLISHED_DATA_FILE_NAME = "published-data.json";
+const PUBLISHED_DATA_REPO_PATH = `docs/${PUBLISHED_DATA_FILE_NAME}`;
 const PUBLISH_CONFIG_KEY = "myBlogStudio.publishConfig.v1";
 const DEFAULT_PUBLISH_TARGET = {
   owner: "carnel0423",
   repo: "my-blog-studio",
   branch: "main",
-  path: PUBLISHED_DATA_FILE_NAME,
+  path: PUBLISHED_DATA_REPO_PATH,
 };
 
 const els = {
@@ -825,7 +826,7 @@ async function publishBlogNow() {
 
   try {
     const result = await pushPublishedDataToGitHub(config, data);
-    const publicUrl = new URL("index.html", window.location.href).toString();
+    const publicUrl = buildPublicSiteUrl(config);
     setStatus(`公開しました（${payload.posts.length}件）。反映まで少し待って ${publicUrl} を確認してください。`);
     if (result?.commitUrl) {
       console.info("publish commit:", result.commitUrl);
@@ -1086,9 +1087,18 @@ function openPublishedView() {
     return;
   }
 
-  const viewUrl = new URL("index.html", window.location.href).toString();
+  const config = loadPublishConfig();
+  const viewUrl = isValidPublishConfig(config)
+    ? buildPublicSiteUrl(config)
+    : new URL("index.html", window.location.href).toString();
   window.location.assign(viewUrl);
   setStatus("公開ビューを開きました。");
+}
+
+function buildPublicSiteUrl(config) {
+  const owner = String(config.owner || "").trim().toLowerCase();
+  const repo = encodeURIComponent(String(config.repo || "").trim());
+  return `https://${owner}.github.io/${repo}/`;
 }
 
 function buildPublishedHtml(posts) {
