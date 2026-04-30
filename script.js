@@ -1,6 +1,13 @@
 const STORAGE_KEY = "myBlogStudio.posts.v1";
 const NO_TAG_LABEL = "タグなし";
 const PUBLISHED_DATA_FILE_NAME = "published-data.json";
+const PUBLISH_CONFIG_KEY = "myBlogStudio.publishConfig.v1";
+const DEFAULT_PUBLISH_TARGET = {
+  owner: "carnel0423",
+  repo: "my-blog-studio",
+  branch: "main",
+  path: PUBLISHED_DATA_FILE_NAME,
+};
 
 const els = {
   postList: document.getElementById("postList"),
@@ -44,6 +51,7 @@ const state = {
   pendingPublishConfirm: null,
   lastSavedSnapshot: "",
   hasUnsavedChanges: false,
+  isPublishing: false,
 };
 
 init();
@@ -51,6 +59,7 @@ init();
 function init() {
   state.posts = loadPosts();
   bindEvents();
+  resetPublishButtonLabel();
 
   if (state.posts.length > 0) {
     selectPost(state.posts[0].id);
@@ -142,7 +151,9 @@ function bindEvents() {
   els.importBtn.addEventListener("click", () => els.importInput.click());
   els.importInput.addEventListener("change", importPostsFromFile);
   els.publishedViewBtn.addEventListener("click", openPublishedView);
-  els.publishDataBtn.addEventListener("click", downloadPublishedDataFile);
+  els.publishDataBtn.addEventListener("click", () => {
+    void publishBlogNow();
+  });
 
   els.previewModalCancelBtn.addEventListener("click", closePublishPreviewModal);
   els.previewModalConfirmBtn.addEventListener("click", () => {
@@ -775,12 +786,16 @@ function buildPublishedDataPayload() {
   };
 }
 
-function downloadPublishedDataFile() {
+async function publishBlogNow() {
+  if (state.isPublishing) {
+    return;
+  }
+
   const current = getFormPost();
   const hasCurrentContent = current.title || current.content.trim() || current.tags.length > 0 || current.keyPoints.length > 0;
   if (state.hasUnsavedChanges && hasCurrentContent) {
-    const continueExport = window.confirm("未保存の変更があります。公開データ出力の前に保存しますか？\n\n「OK」: 保存してから出力\n「キャンセル」: 保存せずに出力");
-    if (continueExport) {
+    const continuePublish = window.confirm("未保存の変更があります。公開の前に保存しますか？\n\n「OK」: 保存して公開\n「キャンセル」: 保存せずに公開");
+    if (continuePublish) {
       saveCurrentPost(false);
       if (state.hasUnsavedChanges) {
         return;
@@ -788,6 +803,258 @@ function downloadPublishedDataFile() {
     }
   }
 
+  if (!persistPosts()) {
+    return;
+  }
+
+  const config = ensurePublishConfig();
+  if (!config) {
+    return;
+  }
+
+  const payload = buildPublishedDataPayload();
+  const data = JSON.stringify(payload, null, 2);
+
+  if (data.length > 950000) {
+    setStatus("公開データが大きすぎます。画像/動画の埋め込みを減らしてから再公開してください。");
+    return;
+  }
+
+  setPublishBusy(true);
+  setStatus("公開処理を開始しています...");
+
+  try {
+    const result = await pushPublishedDataToGitHub(config, data);
+    const publicUrl = new URL("index.html", window.location.href).toString();
+    setStatus(`公開しました（${payload.posts.length}件）。反映まで少し待って ${publicUrl} を確認してください。`);
+    if (result?.commitUrl) {
+      console.info("publish commit:", result.commitUrl);
+    }
+  } catch (error) {
+    console.error(error);
+    if (error instanceof PublishAuthError) {
+      const reset = window.confirm("公開に失敗しました。GitHubトークン設定を更新しますか？");
+      if (reset) {
+        clearPublishConfig();
+      }
+    }
+    setStatus(`公開に失敗しました: ${error.message}`);
+  } finally {
+    setPublishBusy(false);
+  }
+}
+
+function setPublishBusy(isBusy) {
+  state.isPublishing = isBusy;
+  els.publishDataBtn.disabled = isBusy;
+  els.publishDataBtn.textContent = isBusy ? "公開中..." : "🚀 公開";
+}
+
+function resetPublishButtonLabel() {
+  if (!els.publishDataBtn) {
+    return;
+  }
+  els.publishDataBtn.textContent = "🚀 公開";
+}
+
+function ensurePublishConfig() {
+  const existing = loadPublishConfig();
+  if (isValidPublishConfig(existing)) {
+    return existing;
+  }
+
+  const owner = askNonEmptyValue("GitHubユーザー名を入力してください", existing?.owner || DEFAULT_PUBLISH_TARGET.owner);
+  if (owner == null) {
+    return null;
+  }
+
+  const repo = askNonEmptyValue("リポジトリ名を入力してください", existing?.repo || DEFAULT_PUBLISH_TARGET.repo);
+  if (repo == null) {
+    return null;
+  }
+
+  const branch = askNonEmptyValue("ブランチ名を入力してください", existing?.branch || DEFAULT_PUBLISH_TARGET.branch);
+  if (branch == null) {
+    return null;
+  }
+
+  const path = askNonEmptyValue("公開データのパスを入力してください", existing?.path || DEFAULT_PUBLISH_TARGET.path);
+  if (path == null) {
+    return null;
+  }
+
+  const token = askNonEmptyValue("GitHubトークンを入力してください（Contents: Read and write 権限）", "");
+  if (token == null) {
+    return null;
+  }
+
+  const next = { owner, repo, branch, path, token };
+  savePublishConfig(next);
+  return next;
+}
+
+function askNonEmptyValue(message, initialValue) {
+  if (typeof window === "undefined" || typeof window.prompt !== "function") {
+    return null;
+  }
+
+  const value = window.prompt(message, initialValue || "");
+  if (value == null) {
+    return null;
+  }
+  const cleaned = value.trim();
+  if (!cleaned) {
+    setStatus("空欄のままでは公開できません。");
+    return null;
+  }
+  return cleaned;
+}
+
+function loadPublishConfig() {
+  try {
+    const raw = localStorage.getItem(PUBLISH_CONFIG_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return {
+      owner: String(parsed.owner || "").trim(),
+      repo: String(parsed.repo || "").trim(),
+      branch: String(parsed.branch || "").trim(),
+      path: String(parsed.path || "").trim(),
+      token: String(parsed.token || "").trim(),
+    };
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+function savePublishConfig(config) {
+  localStorage.setItem(PUBLISH_CONFIG_KEY, JSON.stringify(config));
+}
+
+function clearPublishConfig() {
+  localStorage.removeItem(PUBLISH_CONFIG_KEY);
+}
+
+function isValidPublishConfig(config) {
+  return Boolean(
+    config
+      && config.owner
+      && config.repo
+      && config.branch
+      && config.path
+      && config.token
+  );
+}
+
+class PublishAuthError extends Error {}
+
+async function pushPublishedDataToGitHub(config, data) {
+  const sha = await fetchCurrentPublishedDataSha(config);
+  const url = buildGitHubContentsApiUrl(config);
+  const body = {
+    message: `Publish blog update ${new Date().toISOString()}`,
+    content: encodeUtf8ToBase64(data),
+    branch: config.branch,
+  };
+  if (sha) {
+    body.sha = sha;
+  }
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const json = await parseJsonSafe(response);
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(extractGitHubErrorMessage(json, "認証エラーです。トークン権限を確認してください。"));
+    }
+    throw new Error(extractGitHubErrorMessage(json, "GitHubへの公開に失敗しました。"));
+  }
+
+  return {
+    commitUrl: json?.commit?.html_url || "",
+  };
+}
+
+async function fetchCurrentPublishedDataSha(config) {
+  const url = `${buildGitHubContentsApiUrl(config)}?ref=${encodeURIComponent(config.branch)}`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  const json = await parseJsonSafe(response);
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(extractGitHubErrorMessage(json, "認証エラーです。トークン権限を確認してください。"));
+    }
+    throw new Error(extractGitHubErrorMessage(json, "公開先ファイルの確認に失敗しました。"));
+  }
+
+  const sha = json && typeof json.sha === "string" ? json.sha.trim() : "";
+  return sha || null;
+}
+
+function buildGitHubContentsApiUrl(config) {
+  const owner = encodeURIComponent(config.owner);
+  const repo = encodeURIComponent(config.repo);
+  const path = encodeGitHubPath(config.path);
+  return `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+}
+
+function encodeGitHubPath(path) {
+  return String(path || "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+async function parseJsonSafe(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function extractGitHubErrorMessage(payload, fallback) {
+  if (payload && typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message.trim();
+  }
+  return fallback;
+}
+
+function encodeUtf8ToBase64(text) {
+  const bytes = new TextEncoder().encode(String(text || ""));
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function downloadPublishedDataFile() {
   const payload = buildPublishedDataPayload();
   const data = JSON.stringify(payload, null, 2);
   const blob = new Blob([data], { type: "application/json" });
@@ -799,7 +1066,7 @@ function downloadPublishedDataFile() {
   anchor.click();
 
   URL.revokeObjectURL(url);
-  setStatus(`公開データを出力しました（${payload.posts.length}件）。${PUBLISHED_DATA_FILE_NAME} をリポジトリに反映して push すると、公開ブログに反映されます。`);
+  setStatus(`公開データを出力しました（${payload.posts.length}件）。`);
 }
 
 function openPublishedView() {

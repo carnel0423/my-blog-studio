@@ -11,9 +11,12 @@ Static blog studio + public blog view.
 
 1. Open `studio.html`
 2. Edit/save posts (`status = 公開`)
-3. Click `公開データ出力` to export `published-data.json`
-4. Replace repository `published-data.json` with the exported file
-5. Push to `main` (GitHub Pages reflects it publicly)
+3. Click `公開` (first time only: GitHub token/setup prompts)
+4. Wait for GitHub Pages to rebuild (usually under 1 minute)
+
+Token note:
+- Use a fine-grained token with repository `Contents: Read and write`.
+- The token is saved in browser localStorage on your machine.
 
 ## Files
 
