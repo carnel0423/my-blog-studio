@@ -714,15 +714,19 @@ function openPublishedView() {
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   if (publishedPosts.length === 0) {
-    setStatus("公開ステータスの投稿がありません。");
+    setStatus("公開ステータスの投稿がありません。公開にしたい投稿を保存してください。");
     return;
   }
 
-  const doc = buildPublishedHtml(publishedPosts);
-  const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank", "noopener,noreferrer");
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  if (!persistPosts()) {
+    return;
+  }
+
+  const viewUrl = "published.html";
+  const opened = window.open(viewUrl, "_blank");
+  if (!opened) {
+    window.location.href = viewUrl;
+  }
   setStatus("公開ビューを開きました。");
 }
 

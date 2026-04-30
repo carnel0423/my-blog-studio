@@ -11,3 +11,5 @@ Open `index.html` in a browser.
 - `index.html`
 - `styles.css`
 - `script.js`
+- `published.html`
+- `published.js`
