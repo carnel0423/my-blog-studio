@@ -1,5 +1,21 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-04-30T00:00:00.000Z",
-  "posts": []
+  "generatedAt": "2026-04-30T10:03:44.179Z",
+  "posts": [
+    {
+      "id": "8ba9ca19-f8fe-4ad7-80e0-2fe7b3dd05d6",
+      "title": "bbfb",
+      "slug": "gngn",
+      "status": "published",
+      "tags": [
+        "fbf"
+      ],
+      "keyPoints": [
+        "fbf"
+      ],
+      "content": "fbf",
+      "createdAt": "2026-04-30T09:46:11.074Z",
+      "updatedAt": "2026-04-30T09:45:22.961Z"
+    }
+  ]
 }
