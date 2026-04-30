@@ -1,5 +1,6 @@
 const STORAGE_KEY = "myBlogStudio.posts.v1";
 const NO_TAG_LABEL = "タグなし";
+const PUBLISHED_DATA_PATH = "published-data.json";
 
 const els = {
   root: document.getElementById("publishedRoot"),
@@ -8,17 +9,22 @@ const els = {
 
 initPublishedView();
 
-function initPublishedView() {
-  const publishedPosts = loadPosts()
+async function initPublishedView() {
+  const source = await loadPublishedSource();
+  const publishedPosts = source.posts
     .filter((post) => post.status === "published")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   if (publishedPosts.length === 0) {
+    const hint = source.kind === "publishedDataFile"
+      ? "編集画面で公開データを出力し、リポジトリの published-data.json を更新すると表示されます。"
+      : "まだ公開データが配信されていません。編集画面から公開データを出力して反映してください。";
+
     els.root.innerHTML = `
       <section class="empty-state">
         <p>公開投稿がまだありません。</p>
-        <p>編集画面で投稿を「公開」にして保存すると表示されます。</p>
-        <a class="btn" href="index.html">編集画面を開く</a>
+        <p>${hint}</p>
+        <a class="btn" href="studio.html">編集画面を開く</a>
       </section>
     `;
     return;
@@ -51,11 +57,63 @@ function initPublishedView() {
     })
     .join("");
 
+  const latest = publishedPosts[0]?.updatedAt || source.generatedAt;
   els.root.innerHTML = sections;
-  els.updated.textContent = `最終更新: ${formatDate(publishedPosts[0].updatedAt) || "-"}`;
+  els.updated.textContent = `最終更新: ${formatDate(latest) || "-"}`;
 }
 
-function loadPosts() {
+async function loadPublishedSource() {
+  const fromPublishedDataFile = await loadPostsFromPublishedDataFile();
+  if (fromPublishedDataFile) {
+    return fromPublishedDataFile;
+  }
+  return {
+    kind: "localStorage",
+    generatedAt: "",
+    posts: loadPostsFromLocalStorage(),
+  };
+}
+
+async function loadPostsFromPublishedDataFile() {
+  try {
+    const response = await fetch(PUBLISHED_DATA_PATH, { cache: "no-store" });
+    if (!response.ok) {
+      return null;
+    }
+    const parsed = await response.json();
+    const normalized = normalizePublishedDataPayload(parsed);
+    return {
+      kind: "publishedDataFile",
+      generatedAt: normalized.generatedAt,
+      posts: normalized.posts,
+    };
+  } catch (error) {
+    console.warn("published-data.json の読み込みをスキップしました。", error);
+    return null;
+  }
+}
+
+function normalizePublishedDataPayload(input) {
+  if (Array.isArray(input)) {
+    return {
+      generatedAt: "",
+      posts: input
+        .filter((item) => item && item.id && item.title != null && item.content != null)
+        .map(normalizePublicPost),
+    };
+  }
+
+  const posts = input && Array.isArray(input.posts) ? input.posts : [];
+  const generatedAt = input && typeof input.generatedAt === "string" ? input.generatedAt : "";
+  return {
+    generatedAt,
+    posts: posts
+      .filter((item) => item && item.id && item.title != null && item.content != null)
+      .map(normalizePublicPost),
+  };
+}
+
+function loadPostsFromLocalStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -67,21 +125,25 @@ function loadPosts() {
     }
     return parsed
       .filter((item) => item && item.id && item.title != null && item.content != null)
-      .map((item) => ({
-        id: String(item.id),
-        title: String(item.title || ""),
-        slug: String(item.slug || ""),
-        status: item.status === "published" ? "published" : "draft",
-        tags: normalizeTags(item.tags),
-        keyPoints: normalizeKeyPoints(item.keyPoints || item.highlights || item.importantPoints),
-        content: String(item.content || ""),
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || new Date().toISOString(),
-      }));
+      .map(normalizePublicPost);
   } catch (error) {
     console.error(error);
     return [];
   }
+}
+
+function normalizePublicPost(item) {
+  return {
+    id: String(item.id),
+    title: String(item.title || ""),
+    slug: String(item.slug || ""),
+    status: item.status === "published" ? "published" : "draft",
+    tags: normalizeTags(item.tags),
+    keyPoints: normalizeKeyPoints(item.keyPoints || item.highlights || item.importantPoints),
+    content: String(item.content || ""),
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: item.updatedAt || new Date().toISOString(),
+  };
 }
 
 function groupPostsByPrimaryTag(posts) {

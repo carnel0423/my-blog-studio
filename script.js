@@ -1,5 +1,6 @@
 const STORAGE_KEY = "myBlogStudio.posts.v1";
 const NO_TAG_LABEL = "タグなし";
+const PUBLISHED_DATA_FILE_NAME = "published-data.json";
 
 const els = {
   postList: document.getElementById("postList"),
@@ -28,6 +29,7 @@ const els = {
   importBtn: document.getElementById("importBtn"),
   importInput: document.getElementById("importInput"),
   publishedViewBtn: document.getElementById("publishedViewBtn"),
+  publishDataBtn: document.getElementById("publishDataBtn"),
   previewModal: document.getElementById("previewModal"),
   previewModalBody: document.getElementById("previewModalBody"),
   previewModalCancelBtn: document.getElementById("previewModalCancelBtn"),
@@ -140,6 +142,7 @@ function bindEvents() {
   els.importBtn.addEventListener("click", () => els.importInput.click());
   els.importInput.addEventListener("change", importPostsFromFile);
   els.publishedViewBtn.addEventListener("click", openPublishedView);
+  els.publishDataBtn.addEventListener("click", downloadPublishedDataFile);
 
   els.previewModalCancelBtn.addEventListener("click", closePublishPreviewModal);
   els.previewModalConfirmBtn.addEventListener("click", () => {
@@ -749,20 +752,57 @@ function importPostsFromFile(event) {
   reader.readAsText(file, "utf-8");
 }
 
-function openPublishedView() {
+function buildPublishedDataPayload() {
   const publishedPosts = state.posts
     .filter((post) => post.status === "published")
+    .map((post) => ({
+      id: String(post.id || ""),
+      title: String(post.title || ""),
+      slug: String(post.slug || slugify(post.title || "")),
+      status: "published",
+      tags: normalizeTags(post.tags),
+      keyPoints: normalizeKeyPoints(post.keyPoints),
+      content: String(post.content || ""),
+      createdAt: post.createdAt || new Date().toISOString(),
+      updatedAt: post.updatedAt || new Date().toISOString(),
+    }))
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-  if (publishedPosts.length === 0) {
-    setStatus("公開ステータスの投稿がありません。公開にしたい投稿を保存してください。");
-    return;
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    posts: publishedPosts,
+  };
+}
+
+function downloadPublishedDataFile() {
+  const current = getFormPost();
+  const hasCurrentContent = current.title || current.content.trim() || current.tags.length > 0 || current.keyPoints.length > 0;
+  if (state.hasUnsavedChanges && hasCurrentContent) {
+    const continueExport = window.confirm("未保存の変更があります。公開データ出力の前に保存しますか？\n\n「OK」: 保存してから出力\n「キャンセル」: 保存せずに出力");
+    if (continueExport) {
+      saveCurrentPost(false);
+      if (state.hasUnsavedChanges) {
+        return;
+      }
+    }
   }
 
-  if (!persistPosts()) {
-    return;
-  }
+  const payload = buildPublishedDataPayload();
+  const data = JSON.stringify(payload, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
 
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = PUBLISHED_DATA_FILE_NAME;
+  anchor.click();
+
+  URL.revokeObjectURL(url);
+  setStatus(`公開データを出力しました（${payload.posts.length}件）。${PUBLISHED_DATA_FILE_NAME} をリポジトリに反映して push すると、公開ブログに反映されます。`);
+}
+
+function openPublishedView() {
   const current = getFormPost();
   const hasCurrentContent = current.title || current.content.trim() || current.tags.length > 0 || current.keyPoints.length > 0;
   if (state.hasUnsavedChanges && hasCurrentContent) {
@@ -775,8 +815,12 @@ function openPublishedView() {
     }
   }
 
-  const viewUrl = "published.html";
-  window.location.href = viewUrl;
+  if (!persistPosts()) {
+    return;
+  }
+
+  const viewUrl = new URL("index.html", window.location.href).toString();
+  window.location.assign(viewUrl);
   setStatus("公開ビューを開きました。");
 }
 
